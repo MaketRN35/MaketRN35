@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <title>Parkings Trotinettes</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        .data {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 20px;
+        }
+        button, input {
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        .carte {
+            width: 250px;
+            height: 130px;
+            padding: 10px;
+            font-size: 1em;
+            margin: 10px;
+            border: thick double #32a1ce;
+            float:left;
+            position: relative;
+        }
+        .Parking img {
+            width: 50px;
+            float: left;
+            top: 10px;
+            left: 10px;
+            position: absolute;
+        }
+        .Parking h3 {
+            width: 200px;
+            margin-bottom: 20px;
+            right: 20px;
+            float: left;
+            position: absolute;
+
+        }
+    </style>
+</head>
+<body>
+    <h1>Micro:bit - {{Nb_Parking}} Maquettes Parking Trotinettes</h1>
+    <!--
+    <div class="carte Parking" style="" id="ParkingA">
+        <img src="{{url_for('static', filename='parking.jpg')}}" alt="Parking" style="" />
+        <h3>Parking<span id="numParkingA" class="data">A</span></h3>
+        <h2 style="top: 0px;right: 5px;position: absolute;">A</h2>
+        <h3 style="bottom: 0px;"><span id="valueParkingA" class="data">...</span> place(s) libre</h3>
+    </div>
+    -->
+    <!-- for i in range(1, 17) -->
+
+    {% for i in range(Nb_Parking) %}
+        <div class="carte Parking" style="" id="Parking{{ Liste_Parking[i] }}">
+            <img src="{{url_for('static', filename='parking.jpg')}}" alt="Parking" style="" />
+            <h3>Parking<span id="numParking{{ Liste_Parking[i] }}" class="data"> {{ Liste_Parking[i] }}</span></h3>
+            <h3 style="bottom: 0px;"><span id="valueParking{{ Liste_Parking[i] }}" class="data">...</span> place(s) libre</h3>
+        </div>
+    {% endfor %}
+
+    <div class="carte">
+        <div id="data" class="data">En attente...</div>
+        <p>Data de type : "ParkingA:3"</p>
+    </div>
+    <script>
+        const socket = io();
+
+        const Conf_liste = ("{{Conf_liste}}"=="letter"?0:1); // letter ou number, si nombre on ajoute 1 digit pour lire les données
+
+        // Mise à jour en temps réel des capteurs
+        socket.on('update_data', function(data) {
+            document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";
+            if (data.valeur.substring(0, 7) == "{{ Data_format }}") { // "Parking"
+                // si recoit ParkingX:Y   X = 00 à 99 ou A à F et Y = 0 à 3 places libres
+                //document.getElementById("numParking" + data.valeur.substring(7, 8) ).innerText = data.valeur.substring(7, 8);
+                document.getElementById("valueParking" + data.valeur.substring(7, 8 + Conf_liste) ).innerText = data.valeur.substring(9  + Conf_liste , 10 + Conf_liste);
+            }
+        });
+    </script>
+</body>
+</html>

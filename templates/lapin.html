@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <title>Micro:bit Dashboard</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        .sensor-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .data {
+            width: 100%;
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        button, input {
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        canvas {
+            max-width: 800px;
+            margin: auto;
+        }
+        .carte {
+            width: 250px;
+            height: 130px;
+            padding: 10px;
+            font-size: 1em;
+            margin: 10px;
+            border: thick double #32a1ce;
+            float:left;
+            position: relative;
+        }
+        .lapin {
+            width: 500px;
+            height: auto;
+        }
+ /* The switch - the box around the slider */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+}
+
+/* Hide default HTML checkbox */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* The slider */
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+  -webkit-transform: translateX(26px);
+  -ms-transform: translateX(26px);
+  transform: translateX(26px);
+}
+
+/* Rounded sliders */
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+} 
+
+        .Parking img, .Barriere img {
+            width: 50px;
+            float: left;
+            top: 10px;
+            left: 10px;
+            position: absolute;
+        }
+        .Parking h3, .Barriere h3 {
+            width: 200px;
+            margin-bottom: 20px;
+            right: 20px;
+            float: left;
+            position: absolute;
+
+        }
+    </style>
+</head>
+<body>
+    <div class="carte lapin">
+        <h2>LAPIN :</h2>
+        <h3><span id="value_lapin">En attente...</span></h3>
+        <p>Oreille gauche : <!--
+        <select name="" id="oreille_gche">
+            <option value="180">180</option>
+            <option value="135">135</option>
+            <option value="90" selected="selected">90</option>
+            <option value="45">45</option>
+            <option value="0">0</option>
+        </select> --></p>
+        <p><button onclick="sendCommandData('oreille_gche:0')">&#x2B05;</button>
+        <button onclick="sendCommandData('oreille_gche:45')">&#x2B09;</button>
+        <button onclick="sendCommandData('oreille_gche:90')">&#x2B06;</button>
+        <button onclick="sendCommandData('oreille_gche:135')">&#x2B08;</button>
+        <button onclick="sendCommandData('oreille_gche:180')">&#x27A1;</button>
+        </p>
+        <p>Oreille droite : <!--
+        <select name="" id="oreille_drte">
+            <option value="180">180</option>
+            <option value="135">135</option>
+            <option value="90" selected="selected">90</option>
+            <option value="45">45</option>
+            <option value="0">0</option>
+        </select>--></p>
+        <p><button onclick="sendCommandData('oreille_drte:0')">&#x2B05;</button>
+        <button onclick="sendCommandData('oreille_drte:45')">&#x2B09;</button>
+        <button onclick="sendCommandData('oreille_drte:90')">&#x2B06;</button>
+        <button onclick="sendCommandData('oreille_drte:135')">&#x2B08;</button>
+        <button onclick="sendCommandData('oreille_drte:180')">&#x27A1;</button></p>
+        <img src="{{url_for('static', filename='karotz.jpg')}}" alt="Karotz" style="width: 100px;position: absolute;left: 20px; top: 20px;" />
+        <p><input type="color" id="colorled" value="#ff0000" onchange="sendcolor(this.value)"/>
+            <label for="colorled">LEDs</label>
+            <label class="switch">
+                <input type="checkbox" id="led1" onclick="sendCommandData('led1:'+ (this.checked?'on':'off') )">
+                <span class="slider round"></span> 
+            </label>
+        </p>
+    </div>
+    <div>
+    <div class="carte Parking" style="width: 250px;height: 130px;">
+        <img src="{{url_for('static', filename='parking.jpg')}}" alt="Parking" style="" />
+        <h3>Parking<span id="numParking" class="data">X</span></h3>
+        <h2 style="top: 0px;right: 5px;position: absolute;">0</h2>
+        <h3 style="bottom: 0px;"><span id="valueParking" class="data">...</span> place(s) libre</h3>
+        <!-- <button onclick="sendCommandData('{{ i }}carte:on')">{{ i }}carte:on </button> -->
+    </div>
+    <div class="carte">
+        <img src="{{url_for('static', filename='bipeur.png')}}" alt="Parking" style="width: 100px;position: absolute;top: 20px;left: 20px;" />
+        <h3 style="width: 150px;position: absolute;right: 20px;">Bipeur N°<span id="num_parking">1</span></h3>
+        <label class="switch" style="position: absolute;bottom: 20px;">
+            <input type="checkbox" id="bipeur" onclick="sendCommandData('bipeur1:'+ (this.checked?'on':'off') )">
+            <span class="slider round"></span> 
+        </label>
+    </div>
+    <div class="carte" style="">
+        <h2>Ilot 01 RFID :</h2>
+        <h3><span id="rfid01">Tag RFID :</span></h3>
+        Data de type : "rfid01:0123456789"
+    </div>
+    <div class="carte Barriere" style="">
+        <img src="{{url_for('static', filename='barriere.png')}}" alt="Barrière" style="" />
+        <h3>Barrière 01 : <span id="barriere01">Etat</span></h3><br><br><br>
+        <button onclick="sendCommandData('barriere01:up')">_Lever_</button>
+        <button onclick="sendCommandData('barriere01:down')">Baisser</button>
+    </div>
+    <div class="carte" style="height: auto;">
+        <!-- <p> Groupe radio 
+            <input type="text" id="commandInput" placeholder="Entrez une valeur" value="{{ groupe_radio }}">
+            <button onclick="sendCommand('groupe_radio')">Envoyer</button> 
+        </p> -->
+        <div id="data" class="data" style="font-size: 1.5cqw;">En attente...</div>
+    </div>
+    <!-- <div class="carte" style="width:400px;height: 200px;">
+        <canvas id="dataChart" width="800px"></canvas>
+    </div> -->
+    <div class="carte" style="width:400px;height: 200px;">
+        <canvas id="dataParking" width="800px"></canvas>
+    </div>
+    <script>
+        function sendcolor(valhexa) {
+            var R = parseInt(valhexa.substring(1,3), 16);
+            console.log(" R"+R)
+            if (R < 10 ) R = "00" + R;
+            else if (R < 100 ) R = "0" + R;
+            var V = parseInt(valhexa.substring(3,5), 16);
+            console.log(" V"+V)
+            if (V < 10 ) V = "00" + V;
+            else if (V < 100 ) V = "0" + V;
+            var B = parseInt(valhexa.substring(5,7), 16);
+            console.log(" B"+B)
+            if (B < 10 ) B = "00" + B;
+            else if (B < 100 ) B = "0" + B;
+            console.log(" RVB "+ R + V + B )
+            sendCommandData('colorled:'+ R + V + B );
+            document.getElementById('led1').checked = true;
+        }
+        function sendCommand(texte) {
+            const value1 = document.getElementById("commandInput").value;
+            if (texte) { value = texte + ':' + value1;}
+            else {value = value1;}
+            if (value) {
+                fetch("/api/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ value: value })
+                })
+                .then(response => response.json())
+                .catch(error => console.error("Erreur d'envoi :", error));
+            }
+        }
+        function sendCommandData(command) {
+            fetch("/api/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ value: command })
+            })
+            .then(response => response.json())
+            .catch(error => console.error("Erreur d'envoi :", error));
+        }
+
+        const socket = io();
+        let time = 0;
+
+        socket.on('update_data', function(data) {
+            document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";            
+            if (data.valeur.substring(0, 6) == "bipeur") { // si recoit bipeur1:off
+                document.getElementById('bipeur').checked = data.valeur.substring(8, 9) !== "on" ? false : true;
+            }
+            if (data.valeur.substring(0, 5) == "lapin") {  // si recoit lapin:XXXX   XXX = BtA, BtB, BtC, BtD
+                document.getElementById("value_lapin").innerText = data.valeur.substring(6);
+            }
+            if (data.valeur.substring(0, 7) == "Parking") { // si recoit ParkingX:Y   X = 0 à 9 ou A à F et Y = 0 à 3 places libres
+                document.getElementById("numParking").innerText = data.valeur.substring(7, 8);
+                document.getElementById("valueParking").innerText = data.valeur.substring(9, 10);
+                let now = new Date().toLocaleTimeString();
+                // Ajouter les nouvelles valeurs au graphique
+                dataParking.data.labels.push(now);
+                dataParking.data.datasets[0].data.push(data.valeur.substring(9, 10));
+                // Limiter le nombre de points affichés pour éviter la surcharge
+                if (dataParking.data.labels.length > 20) {
+                    dataParking.data.labels.shift();
+                    dataParking.data.datasets[0].data.shift();
+                }
+                // Mettre à jour le graphique
+                dataParking.update();
+            }
+            if (data.valeur.substring(0, 4) == "rfid") { // si recoit rfidXX:Y   X = 00 à 20 et Y = code rfid sans connaitre sa taille
+                num_carte = data.valeur.substring(4,6);
+                document.getElementById("rfid"+num_carte).innerText += data.valeur.substring(7) + "\\n";
+            }
+            /*
+            if (data.valeur.substring(0, 6) == "charts") { // si recoit charts:Y   Y = valeur sans connaitre sa taille
+                let now = new Date().toLocaleTimeString();
+                // Ajouter les nouvelles valeurs au graphique
+                dataChart.data.labels.push(now);
+                dataChart.data.datasets[0].data.push(data.valeur.substring(7));
+                // Limiter le nombre de points affichés pour éviter la surcharge
+                if (dataChart.data.labels.length > 20) {
+                    dataChart.data.labels.shift();
+                    dataChart.data.datasets[0].data.shift();
+                }
+                // Mettre à jour le graphique
+                dataChart.update();
+            }*/
+        });
+
+
+        // Envoi des commandes via WebSocket
+        function sendCommandWS(command) {
+            socket.emit('send_command', command);
+            //alert("Commande envoyée : " + command);
+        }
+
+/*
+        // Initialisation du graphique avec Chart.js
+        const ctx = document.getElementById('dataChart').getContext('2d');
+        const dataChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],  // Labels temporels
+                datasets: [{
+                    label: "Valeur",
+                    borderColor: "#007BFF",
+                    backgroundColor: "rgba(0, 123, 255, 0.2)",
+                    data: [], // Données
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    x: { title: { display: true, text: 'Temps (s)' } },
+                    y: { title: { display: true, text: 'Valeur' } }
+                }
+            }
+        });
+*/
+        // Initialisation du graphique avec Chart.js pour Parking
+        const ctxParking = document.getElementById('dataParking').getContext('2d');
+        const dataParking = new Chart(ctxParking, {
+            type: 'line',
+            data: {
+                labels: [],  // Labels temporels
+                datasets: [{
+                    label: "ParkingA",
+                    borderColor: "#FF7BFF",
+                    backgroundColor: "rgba(255, 123, 255, 0.2)",
+                    data: [], // Données
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    x: { title: { display: true, text: 'Temps' } },
+                    y: { title: { display: true, text: 'Places Libres' } }
+                }
+            }
+        });
+
+
+    </script>
+</body>
+</html>

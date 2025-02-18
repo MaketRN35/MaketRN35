@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Micro:bit Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        .sensor-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        canvas {
+            max-width: 800px;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Micro:bit - Données en temps réel</h1>
+
+    <p>Température : <span id="temp">--</span> °C</p>
+    <canvas id="chartTemp"></canvas>
+
+    <p>Luminosité : <span id="light">--</span></p>
+    <canvas id="chartLight"></canvas>
+
+    <p>Accéléromètre X : <span id="acc_x">--</span></p>
+    <canvas id="chartAcc"></canvas>
+
+    <button id="toggleButton">Démarrer</button>
+
+    <script>
+        let isRunning = false;
+        let intervalId;
+        let time = 0;
+
+        const createChart = (ctx, label, color) => new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: [],
+                datasets: [{
+                    label: label,
+                    borderColor: color,
+                    backgroundColor: color + "20",
+                    data: [],
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: "Temps (s)" } },
+                    y: { title: { display: true, text: "Valeur" } }
+                }
+            }
+        });
+
+        const chartTemp = createChart(document.getElementById("chartTemp").getContext("2d"), "Température (°C)", "#FF5733");
+        const chartLight = createChart(document.getElementById("chartLight").getContext("2d"), "Luminosité", "#FFC300");
+        const chartAcc = createChart(document.getElementById("chartAcc").getContext("2d"), "Accélération X", "#007BFF");
+
+        function fetchData() {
+            fetch("/api/data")
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("temp").innerText = data.temp;
+                    document.getElementById("light").innerText = data.light;
+                    document.getElementById("acc_x").innerText = data.acc_x;
+
+                    chartTemp.data.labels.push(time);
+                    chartTemp.data.datasets[0].data.push(data.temp);
+
+                    chartLight.data.labels.push(time);
+                    chartLight.data.datasets[0].data.push(data.light);
+
+                    chartAcc.data.labels.push(time);
+                    chartAcc.data.datasets[0].data.push(data.acc_x);
+
+                    time += 1;
+
+                    if (chartTemp.data.labels.length > 20) {
+                        chartTemp.data.labels.shift();
+                        chartTemp.data.datasets[0].data.shift();
+                        chartLight.data.labels.shift();
+                        chartLight.data.datasets[0].data.shift();
+                        chartAcc.data.labels.shift();
+                        chartAcc.data.datasets[0].data.shift();
+                    }
+
+                    chartTemp.update();
+                    chartLight.update();
+                    chartAcc.update();
+                })
+                .catch(error => console.error("Erreur lors de la récupération des données :", error));
+        }
+
+        function toggleData() {
+            isRunning = !isRunning;
+            document.getElementById("toggleButton").innerText = isRunning ? "Arrêter" : "Démarrer";
+
+            if (isRunning) {
+                intervalId = setInterval(fetchData, 1000);
+            } else {
+                clearInterval(intervalId);
+            }
+        }
+
+        document.getElementById("toggleButton").addEventListener("click", toggleData);
+    </script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Micro:bit Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        #data {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        canvas {
+            max-width: 800px;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Micro:bit - Données en temps réel</h1> 
+    <p>Valeur reçue :</p>
+    <div id="data">En attente...</div>
+
+    <button id="toggleButton">Démarrer</button>
+    <canvas id="chart" width="800px"></canvas>
+
+    <script>
+
+        let isRunning = false;  // État du bouton (Start/Stop)
+        let intervalId;  // ID de l'intervalle pour le setInterval
+        let time = 0;  // Temps pour l'axe X
+
+        // Initialisation du graphique Chart.js
+        const ctx = document.getElementById("chart").getContext("2d");
+        const chart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: [], // Temps
+                datasets: [{
+                    label: "Valeur",
+                    borderColor: "#007BFF",
+                    backgroundColor: "rgba(0, 123, 255, 0.2)",
+                    data: [], // Données
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: "Temps (s)" } },
+                    y: { title: { display: true, text: "Valeur" } }
+                }
+            }
+        });
+
+        function fetchData() {
+            fetch("/api/data")
+                .then(response => response.json())
+                .then(data => {
+                    const value = data.valeur !== null ? parseInt(data.valeur) : 0;
+                    document.getElementById("data").innerText = value;
+
+                    // Ajouter les nouvelles données au graphique
+                    chart.data.labels.push(time);
+                    chart.data.datasets[0].data.push(value);
+                    time += 1;
+
+                    // Garder seulement les 20 dernières valeurs pour éviter une surcharge
+                    if (chart.data.labels.length > 20) {
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                    }
+
+                    chart.update();
+                })
+                .catch(error => console.error("Erreur lors de la récupération des données :", error));
+        }
+
+        // Rafraîchir toutes les 1 seconde
+        //setInterval(fetchData, 1000);
+
+        // Fonction pour démarrer ou arrêter la mise à jour des données
+        function toggleData() {
+            isRunning = !isRunning;
+            document.getElementById("toggleButton").innerText = isRunning ? "Arrêter" : "Démarrer";
+
+            if (isRunning) {
+                intervalId = setInterval(fetchData, 1000);  // Mise à jour toutes les 1s
+            } else {
+                clearInterval(intervalId);
+            }
+        }
+
+        // Ajout d'un écouteur d'événement sur le bouton
+        document.getElementById("toggleButton").addEventListener("click", toggleData);
+    </script>
+</body>
+</html>

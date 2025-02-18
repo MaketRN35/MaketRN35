@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <title>Micro:bit Page Index</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        .sensor-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        #data {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 20px;
+        }
+        button, input {
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        canvas {
+            max-width: 800px;
+            margin: auto;
+        }
+        .carte {
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+            border: thick double #32a1ce;
+            width: 20%;
+            float:left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Micro:bit - Menu </h1>
+
+    <div class="carte">
+        <p>Envoyer une valeur aux Micro:bit :</p>
+        <input type="text" id="commandInput" placeholder="Entrez une valeur">
+        <button onclick="sendCommand()">Envoyer</button>
+    </div>
+    <div class="carte">
+        <p>Valeur reçue :</p>
+        <div id="data">En attente...</div>
+    </div>
+
+    <br>
+    <a href="./config"> Configuration</a><br>
+    <a href="./lapin"> Lapin Tests </a><br>
+    <br>
+    <a href="./trott"> Parkings trotinettes</a><br>
+
+    <script>
+        function sendCommand() {
+            const value = document.getElementById("commandInput").value;
+            if (value) {
+                fetch("/api/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ value: value })
+                })
+                .then(response => response.json())
+                .catch(error => console.error("Erreur d'envoi :", error));
+            }
+        }
+
+        const socket = io();
+
+        // Mise à jour en temps réel des capteurs
+        socket.on('update_data', function(data) {
+            document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";
+        });
+
+        // Envoi des commandes via WebSocket
+        function sendCommandWS(command) {
+            socket.emit('send_command', command);
+        }
+    </script>
+</body>
+</html>
