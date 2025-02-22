@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <title>Potager Connecté</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        .data {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 20px;
+        }
+        button, input {
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        .carte {
+            width: 250px;
+            height: 130px;
+            padding: 10px;
+            font-size: 1em;
+            margin: 10px;
+            border: thick double #32a1ce;
+            float:left;
+            position: relative;
+        }
+        .alerte {
+            background-color: #ff5353; //red;
+        }
+        .Ilot img {
+            width: 130px;
+            float: left;
+            top: 10px;
+            left: 10px;
+            position: absolute;
+        }
+        .Ilot h3 {
+            width: 200px;
+            margin-bottom: 20px;
+            right: 10px;
+            float: left;
+            position: absolute;
+
+        }
+    </style>
+</head>
+<body>
+    <h1>Micro:bit - {{Nb_Maquettes}} {{Titre}}</h1>
+    <h2>{{Sous_titre}}</h2>
+
+    {% for i in range(1, 9) %}
+    <div class="carte Ilot" style="" id="Ilot{{ i }}">
+        <img src="{{url_for('static', filename='potager') }}{{i}}.png" alt="Ilot" style="" />
+        <h3 style="text-align:right">Ilot<span id="numIlot{{ i }}" class="data"> {{ i }}</span></h3>
+        <h3 style="bottom: 0px;">Humidité : <span id="valueIlot{{ i }}" class="data">....</span></h3>
+    </div>
+    {% endfor %}
+
+    <div class="carte">
+        <div id="data" class="data">En attente...</div>
+        <p>Data de type : "H1:3000"</p>
+    </div>
+    <div class="carte">
+        <label for="groupe_radio">Groupe Radio Micro:Bit : </label>
+        <input type="number" id="groupe_radio" min="1" max="255" value="{{ groupe_radio }}"><br>
+        <button onclick="sendCommand('groupe_radio')">Changer Groupe Radio </button>
+    </div>
+    <div class="carte">
+        <label for="seuilAlerte">Seuil sous lequel l'ilot est rouge : </label>
+        <input type="number" id="seuilAlerte" value="50"><br>
+        <button onclick="MAJSeuil()">Changer Seuil Alerte</button>
+    </div>
+    <script>
+        /* fonction permet d'envoyer des datas aux Maquettes du type <texte>:<value de l'élémente id=texte>*/
+        function sendCommand(texte) {
+            if (texte) { value = texte+ ':' + document.getElementById(texte).value;}
+            else {value = document.getElementById("commandInput").value;}
+            if (value) {
+                fetch("/api/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ value: value })
+                })
+                .then(response => response.json())
+                .catch(error => console.error("Erreur d'envoi :", error));
+            }
+        }
+
+        var seuilAlerte = 50;
+        function MAJSeuil() {
+            seuilAlerte = document.getElementById("seuilAlerte").value;
+            // parcourrir les 8 Ilot pour mettre à jour la couleur de fond si alerte
+            // met a jour toutes les seuils
+            Array.from(document.getElementsByClassName("Ilot")).forEach(SeuilAlerteColor);
+        }
+        function SeuilAlerteColor(element) {
+            //element.id
+            //element.style.backgroundColor = 'red';
+            if (parseInt(document.getElementById("value" + element.id).innerText) < seuilAlerte ){
+                element.classList.add("alerte");
+            } else {
+                element.classList.remove("alerte");
+            }
+        }
+        const socket = io();
+        const Data_format = "{{ Data_format }}"; // format attendu des données <Data_format>X:Y
+
+        // Mise à jour en temps réel des capteurs
+        socket.on('update_data', function(data) {
+            document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";
+            if (data.valeur.substring(0, Data_format.length ) == Data_format) { // "H"
+                // si recoit HX:Y   X = 0 à 9 et Y % humidité
+                // si recoit <Data_format>X:Y   X reférence de la maquette (chiffre(s), lettre(s)) le séparateur ":" puis Y valeur a récupérer pour la maquette par seulement sur 1 digit
+                val_X = data.valeur.substring(Data_format.length, data.valeur.indexOf(":") );
+                val_Y = data.valeur.substring(data.valeur.indexOf(":") + 1);
+                element = document.getElementById("valueIlot" +  val_X );
+                element.innerText = val_Y;
+                parent = element.parentNode;
+                if ( parseInt(val_Y) < seuilAlerte ) {
+                    parent.classList.add("alerte");
+                } else {
+                    parent.classList.remove("alerte");
+                }
+            }
+        });
+    </script>
+</body>
+</html>

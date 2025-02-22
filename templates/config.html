@@ -64,6 +64,7 @@
         </select><br>
         <label for="cnx_auto" data-off="Off" data-on="On" >Connexion Automatique : </label>
         <input type="checkbox" id="cnx_auto" value="{{ cnx_auto }}"><br>
+        <br>TODO gérer 'mode_namevalue'<br>
         <label for="groupe_radio">Groupe Radio Micro:Bit : </label>
         <input type="number" id="groupe_radio" min="1" max="255" value="{{ groupe_radio }}"><br>
         <button onclick="sendSettings()">Envoyer config générale "settings" </button>
@@ -71,62 +72,26 @@
 
     <div class="carte">
         <h2> Thread connexion série </h2>
-        <button onclick="lancerThread()"> Lancer connexion série </button>
+        <button onclick="lancerThread()" {% if cnx_auto %} disabled {% endif %}> Lancer connexion série </button>
         <!-- <button onclick="stopperThread()"> Stopper connexion série </button> -->
     </div>
 
     <div class="carte">
-        <h2> Donnée reçue via série </h2>
+        <h2> Données reçues </h2>
         <div id="data">En attente...</div>
     </div>
-
-    <div class="carte" style="width: 50%;">
-        <h2> Configuration Parking </h2>
-        
-        <label for="Data_format">Format donnée Parking : </label>
-        <input type="text" id="Data_format" placeholder="Parking" value="{{ Data_format }}"><br>
-        ex : ParkingX:Y <br> avec X une lettre ou nombre 00 <br> et Y valeur de 0 à 3 places libres => Parking<br><br>
-        <!-- letter = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']<br>
-        number = ['01', '02', '03', '04', '05', '06', '07', '08', '09', 10, 11, 12, 13, 14, 15, 16]<br>
-        -->
-        <label for="Liste_Parking">Vitesse connexion série : </label>
-        <select name="Liste_Parking" id="Liste_Parking">
-            <option value="letter" selected>Lettre (ex : ParkingA)</option>
-            <option value="number">Nombre (ex : Parking01)</option>
-        </select><br>
-        <label for="Nb_Parking">Nombre de maquette parking (maxi 16) : </label>
-        <input type="number" id="Nb_Parking" min="1" max="16" placeholder="16" value="{{ Nb_Parking }}"><br>
-        <button onclick="sendParking()">Envoyer config "Parking" </button>
-    
-    </div>
-
 
     <script>
         function sendSettings() {
             const serial_port = document.getElementById("SERIAL_PORT").value;
             const baud_rate = document.getElementById("BAUD_RATE").value;
             const cnx_auto = document.getElementById("cnx_auto").checked;
+            // mode_namevalue
             const groupe_radio = document.getElementById("groupe_radio").value;
             fetch("/api/config", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ serial_port: serial_port , BAUD_RATE : baud_rate, cnx_auto : cnx_auto, groupe_radio : groupe_radio })
-            })
-            .then(response => response.json())
-            .catch(error => console.error("Erreur d'envoi :", error));
-        }
-        function sendParking() {
-            Data_format = document.getElementById("Data_format").value;
-            console.log(Data_format);
-            if ( Data_format == "" ) { Data_format = "Parking"; }
-            console.log(Data_format);
-            const Liste_Parking = document.getElementById("Liste_Parking").value;
-            Nb_Parking = document.getElementById("Nb_Parking").value;
-            if ( Nb_Parking == "" ) { Nb_Parking = "16"; }
-            fetch("/api/configParking", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Data_format: Data_format , Liste_Parking : Liste_Parking, Nb_Parking : Nb_Parking })
             })
             .then(response => response.json())
             .catch(error => console.error("Erreur d'envoi :", error));

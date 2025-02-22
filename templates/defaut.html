@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <title>{{Titre}}</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    {% if Charts %} <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> {% endif %}
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #007BFF;
+        }
+        .data {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 20px;
+        }
+        button, input {
+            padding: 10px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        .charts {
+            width:400px;
+            height: 200px;
+        }
+        canvas {
+            width: 100%;
+            max-width: 800px;
+            margin: auto;
+        }
+        .carte {
+            width: 250px;
+            height: 130px;
+            padding: 10px;
+            font-size: 1em;
+            margin: 10px;
+            border: thick double #32a1ce;
+            float:left;
+            position: relative;
+        }
+        .alerte {
+            background-color: #ff5353; //red;
+        }
+        .Maquette img {
+            width: 100px;
+            float: left;
+            top: 10px;
+            left: 10px;
+            position: absolute;
+        }
+        .Maquette h3 {
+            width: 200px;
+            margin-bottom: 20px;
+            right: 10px;
+            float: left;
+            position: absolute;
+
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='switch.css') }}">
+
+</head>
+<body>
+    <h1>Micro:bit - {{Nb_Maquettes}} {{Titre}}</h1>
+    <h2>{{Sous_titre}}</h2>
+
+    {% for i in range(Nb_Maquettes) %}
+    <div class="carte Maquette" style="" id="Maquette{{ Liste_Maquettes[i] }}">
+        {% if Img_Maquette_liste == True %}
+            <img src="{{url_for('static', filename='') }}{{Img_Maquette[i]}}" alt="PAS Image" id="imgMaquette{{ Liste_Maquettes[i] }}" />
+        {% else %}
+            <img src="{{url_for('static', filename='') }}{{Img_Maquette}}" alt="" id="imgMaquette{{ Liste_Maquettes[i] }}" />
+        {% endif %}
+        <h3 style="text-align:right">{{Texte_Maquette}}<span id="numMaquette{{ Liste_Maquettes[i] }}" class="data">{{ Liste_Maquettes[i] }}</span></h3>
+        <h3 style="bottom: 0px;"><span id="valueMaquette{{ Liste_Maquettes[i] }}" class="data">....</span></h3>
+    </div>
+    {% endfor %}
+
+    <div class="carte charts" {% if Carte_Charts != True %} style="display:none;" {% endif %}>
+        <canvas id="charts" ></canvas>
+    </div>
+
+    <div class="carte Maquette" style="display:none;" id="MaquetteTest">
+        <img src="{{url_for('static', filename='bipeur.png') }}" alt="" id="imgMaquetteTest" />
+        <h3 style="text-align:right">{{Texte_Maquette}}<span id="numMaquetteTest" class="data">Test</span></h3>
+        <h3 style="bottom: 0px;"><span id="valueMaquetteTest" class="data">....</span></h3>
+        <label class="switch" style="position: absolute;bottom: 20px;">
+            <input type="checkbox" id="switchTest" onclick="sendCommandData('{{ Data_format }}Test:'+ (this.checked?'on':'off') )">
+            <span class="slider round"></span> 
+        </label>
+    </div>
+
+    <div class="carte Maquette" style="display:none;" id="MaquetteTest">
+        <img src="{{url_for('static', filename='barriere.png')}}" alt="" id="imgMaquetteTest" />
+        <h3 style="text-align:right">{{Texte_Maquette}}<span id="numMaquetteTest" class="data">Test</span></h3>
+        <h3 style="bottom: 0px;"><span id="valueMaquetteTest" class="data">....</span></h3>
+        <span style="width: 100%;position: absolute;bottom: 20px;right: 0px;">
+            <button onclick="sendCommandData('{{ Data_format }}Test:up')">_Lever_</button>
+            <button onclick="sendCommandData('{{ Data_format }}Test:down')">Baisser</button>
+        </span>
+    </div>
+
+    <div class="carte" style="display:none;">
+        <p>
+            TODO : A effacer pour les tests/Debug
+            Img_Maquette:{{Img_Maquette}}
+            Img_Maquette_liste:{{Img_Maquette_liste}}
+            Carte_AllData:{{Carte_AllData}}
+            Carte_MAJ_grouperadio:{{Carte_MAJ_grouperadio}}
+            Carte_Charts:{{Carte_Charts}}
+        </p>
+    </div>
+    <div class="carte" {% if Carte_AllData != True %} style="display:none;" {% endif %}>
+        <div id="data" class="data">En attente...</div>
+        <p>Data de type : "{{Data_format}}{{Liste_Maquettes[0]}}:{{Valeur_defaut}}"</p>
+    </div>
+    <div class="carte" {% if Carte_MAJ_grouperadio != True %} style="display:none;" {% endif %}>
+        <label for="groupe_radio">Groupe Radio Micro:Bit : </label>
+        <input type="number" id="groupe_radio" min="1" max="255" value="{{ groupe_radio }}"><br>
+        <button onclick="sendCommand('groupe_radio')">Changer Groupe Radio </button>
+    </div>
+
+    <script>
+        const socket = io();
+        const Data_format = "{{ Data_format }}"; // format attendu des données <Data_format>X:Y
+
+        /* fonction permet d'envoyer des datas aux Maquettes du type <texte>:<value de l'élémente id=texte>*/
+        function sendCommand(texte) {
+            if (texte) { value = texte+ ':' + document.getElementById(texte).value;}
+            else {value = document.getElementById("commandInput").value;}
+            if (value) {
+                fetch("/api/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ value: value })
+                })
+                .then(response => response.json())
+                .catch(error => console.error("Erreur d'envoi :", error));
+            }
+        }
+
+        function sendCommandData(command) {
+            fetch("/api/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ value: command })
+            })
+            .then(response => response.json())
+            .catch(error => console.error("Erreur d'envoi :", error));
+        }
+
+        // Envoi des commandes via WebSocket
+        function sendCommandWS(command) {
+            socket.emit('send_command', command);
+        }
+
+        // Mise à jour en temps réel des capteurs via WebSocket
+        socket.on('update_data', function(data) {
+            document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";
+            if (data.valeur.substring(0, Data_format.length ) == Data_format) {
+                // si recoit <Data_format>X:Y   X reférence de la maquette (chiffre(s), lettre(s)) le séparateur ":" puis Y valeur a récupérer pour la maquette par seulement sur 1 digit
+                val_X = data.valeur.substring(Data_format.length, data.valeur.indexOf(":") );
+                val_Y = data.valeur.substring(data.valeur.indexOf(":") + 1);
+                element = document.getElementById("valueMaquette" +  val_X );
+                element.innerText = val_Y;
+
+                /* // bout de code pour afficher un charts en dynamique
+                // Ajouter les nouvelles valeurs au graphique
+                let now = new Date().toLocaleTimeString();  // TODO a voir car affiche la date peut-être mieux incrémenter un nb ?
+                dataParking.data.labels.push(now);
+                dataParking.data.datasets[0].data.push(val_Y);
+                // Limiter le nombre de points affichés pour éviter la surcharge
+                if (dataParking.data.labels.length > 20) {
+                    dataParking.data.labels.shift();
+                    dataParking.data.datasets[0].data.shift();
+                }
+                // Mettre à jour le graphique
+                dataParking.update();
+                */
+
+                /* Code Perso : ICI possible d'ajouter Une logique spécifique */
+                /* exemple : element correspondant à l'image de la maquette mise à jour on la remplace par "defaut.png" 
+                image_Maquette = document.getElementById("imgMaquette" +  val_X );
+                image_Maquette.src = "defaut.png";
+                 */
+                
+                /* /fin Code Perso*/
+            }
+        });
+
+    {% if Charts %} 
+        // Initialisation du graphique avec Chart.js pour Parking
+        const ctxParking = document.getElementById('charts').getContext('2d');
+        const dataParking = new Chart(ctxParking, {
+            type: 'line',
+            data: {
+                labels: [],  // Labels temporels
+                datasets: [{
+                    label: "ParkingA",
+                    borderColor: "#FF7BFF",
+                    backgroundColor: "rgba(255, 123, 255, 0.2)",
+                    data: [], // Données
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    x: { title: { display: true, text: 'Temps' } },
+                    y: { title: { display: true, text: 'Places Libres' } }
+                }
+            }
+        });
+    {% endif %}
+
+    </script>
+</body>
+</html>

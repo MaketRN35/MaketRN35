@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <title>Micro:bit Dashboard</title>
+    <title>Micro:bit Tests Lapin </title>
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -35,6 +35,7 @@
             margin-top: 10px;
         }
         canvas {
+            width: 100%;
             max-width: 800px;
             margin: auto;
         }
@@ -210,7 +211,7 @@ input:checked + .slider:before {
         <canvas id="dataChart" width="800px"></canvas>
     </div> -->
     <div class="carte" style="width:400px;height: 200px;">
-        <canvas id="dataParking" width="800px"></canvas>
+        <canvas id="dataParking" ></canvas>
     </div>
     <script>
         function sendcolor(valhexa) {
