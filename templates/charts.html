@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Micro:bit Dashboard</title>
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <title>Micro:bit Charts</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin-top: 20px;
+            background-color: white;
         }
         h1 {
             color: #007BFF;
@@ -33,81 +36,107 @@
     </style>
 </head>
 <body>
-    <h1>Micro:bit - Données en temps réel</h1> 
-    <p>Valeur reçue :</p>
+    <h1>Micro:bit - Graphique Maquette : {{ data|safe }} </h1> 
+    <p>Données en temps réel Maquette</p>
     <div id="data">En attente...</div>
 
-    <button id="toggleButton">Démarrer</button>
     <canvas id="chart" width="800px"></canvas>
+
+    <div class="carte" style="display:none;">
+        <p>
+            TODO : A effacer pour les tests/Debug
+            data:{{data}}
+            histo_data :
+            {% for key  in histo_data %}
+                <br>key={{key}} / : / value={{histo_data[key]}}<br>
+            {% endfor %}
+
+            <p>
+                All_latest_data : <br>
+            {% for key in All_latest_data %}
+                {{key}}:{{All_latest_data[key]}}<br>
+            {% endfor %}
+            </p>
+        </p>
+    </div>
 
     <script>
 
-        let isRunning = false;  // État du bouton (Start/Stop)
-        let intervalId;  // ID de l'intervalle pour le setInterval
-        let time = 0;  // Temps pour l'axe X
+        const socket = io();
+        const Data_format = "{{ data|safe }}"; // format attendu des données <Data_format>:value
+        const nb_max_val = {{nb_max_val}}; //20; // nombre max de valeurs affichées dans le graph
+        let increment = 0;
 
         // Initialisation du graphique Chart.js
         const ctx = document.getElementById("chart").getContext("2d");
         const chart = new Chart(ctx, {
             type: "line",
             data: {
-                labels: [], // Temps
+                labels: [],
                 datasets: [{
-                    label: "Valeur",
-                    borderColor: "#007BFF",
-                    backgroundColor: "rgba(0, 123, 255, 0.2)",
-                    data: [], // Données
+                    label: "{{ data|safe }}",
+                    borderColor: "#FF7BFF", //"#007BFF",
+                    backgroundColor: "rgba(255, 123, 255, 0.2)", //"rgba(0, 123, 255, 0.2)",
+                    data: [], // Données {% for i in histo_data[data] %}{{i}},{% endfor %}
                 }]
             },
             options: {
                 responsive: true,
                 scales: {
-                    x: { title: { display: true, text: "Temps (s)" } },
-                    y: { title: { display: true, text: "Valeur" } }
+                    x: { title: { display: true, text: "{{text_x}}" } }, // Temps
+                    y: { title: { display: true, text: "{{text_y}}" } } // Valeur
                 }
             }
         });
 
-        function fetchData() {
-            fetch("/api/data")
-                .then(response => response.json())
-                .then(data => {
-                    const value = data.valeur !== null ? parseInt(data.valeur) : 0;
-                    document.getElementById("data").innerText = value;
+        // Mise à jour en temps réel des capteurs via WebSocket
+        socket.on('update_data', function(data) {
+            if (data.valeur.substring(0, Data_format.length ) == Data_format) {
+                document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";
+                // si recoit <Data_format>:Y   le séparateur ":" puis Y valeur a récupérer pour la maquette
+                val_Y = data.valeur.substring(data.valeur.indexOf(":") + 1);
+                // Ajouter les nouvelles données au graphique
+                chart.data.labels.push(increment);
+                chart.data.datasets[0].data.push(val_Y);
+                increment += 1;
 
-                    // Ajouter les nouvelles données au graphique
-                    chart.data.labels.push(time);
-                    chart.data.datasets[0].data.push(value);
-                    time += 1;
+                // Garder seulement les "nb_max_val" dernières valeurs pour éviter une surcharge
+                if (chart.data.labels.length > nb_max_val) {
+                    chart.data.labels.shift();
+                    chart.data.datasets[0].data.shift();
+                }
 
-                    // Garder seulement les 20 dernières valeurs pour éviter une surcharge
-                    if (chart.data.labels.length > 20) {
-                        chart.data.labels.shift();
-                        chart.data.datasets[0].data.shift();
-                    }
-
-                    chart.update();
-                })
-                .catch(error => console.error("Erreur lors de la récupération des données :", error));
-        }
-
-        // Rafraîchir toutes les 1 seconde
-        //setInterval(fetchData, 1000);
-
-        // Fonction pour démarrer ou arrêter la mise à jour des données
-        function toggleData() {
-            isRunning = !isRunning;
-            document.getElementById("toggleButton").innerText = isRunning ? "Arrêter" : "Démarrer";
-
-            if (isRunning) {
-                intervalId = setInterval(fetchData, 1000);  // Mise à jour toutes les 1s
-            } else {
-                clearInterval(intervalId);
+                chart.update();
             }
+
+        });
+
+        // met à jour le graphique avec les datas de l'historique "histo_data[data]"
+        function updateChart() { 
+            for (const element of histo_data) {
+                chart.data.labels.push(increment);
+                chart.data.datasets[0].data.push(element);
+                increment += 1;
+                // Garder seulement les "nb_max_val" dernières valeurs pour éviter une surcharge
+                if (chart.data.labels.length > nb_max_val) {
+                    chart.data.labels.shift();
+                    chart.data.datasets[0].data.shift();
+                }
+            }   
+            chart.update();
+        }
+        // mise à jour avec l'historique des valeurs
+        {% if histo_data[data] %}
+            histo_data = {{histo_data[data]|safe}};
+        {% else %}
+            histo_data = [];
+        {% endif %}
+
+        if ( histo_data.length > 0 ) {
+            document.getElementById("data").innerText = "{{data}}:{{All_latest_data[data]}}";
+            updateChart();
         }
 
-        // Ajout d'un écouteur d'événement sur le bouton
-        document.getElementById("toggleButton").addEventListener("click", toggleData);
     </script>
 </body>
 </html>

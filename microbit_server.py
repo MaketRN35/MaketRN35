@@ -1,4 +1,4 @@
-﻿#  Programme développer par Anthony PENHARD pour piloter des maquettes en classe de technologie Collège Ac-Rennes
+#  Programme développer par Anthony PENHARD pour piloter des maquettes en classe de technologie Collège Ac-Rennes
 #
 # Cf. Changelog.md
 
@@ -6,6 +6,7 @@ import serial
 import serial.tools.list_ports
 import time
 import os
+#import csv
 import sys
 from datetime import datetime
 from flask import Flask, jsonify, render_template, render_template_string, request, send_from_directory, abort
@@ -14,11 +15,25 @@ from flask_socketio import SocketIO
 from engineio.async_drivers import threading
 import threading
 
-# Variable globale pour stocker les dernières données reçues
+# Variables globales pour stocker les dernières données reçues
 latest_data = {"valeur": None}
+All_latest_data = {} # enregistre la dernière valeur reçu de chaque maquette format "<maquette>:value"{ "ParkingA": 1 , "ParkingA": 2 }
+histo_data = {} # "ParkingA": {1, 2 , 3, 2}
+version = "V2.2.0"
+
+#dt_format='%Y-%m-%d %H:%M:%S.%f'
+#now = time.strftime('%d-%m-%Y %H:%M:%S')
+# csv 
+# ex : https://fr.sharpcoderblog.com/blog/reading-and-writing-csv-files-in-python
+#with open('output.csv', mode='w', newline='') as file:
+#    writer = csv.writer(file)
+#    now = time.strftime('%d-%m-%Y %H:%M:%S')
+#    writer.writerows([now, data])
+
 
 # Initialisation de Flask et Flask-SocketIO
 app = Flask(__name__)
+#app = Flask(__name__, static_folder='static', template_folder='templates')
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # fichier de configuration ini
@@ -64,10 +79,13 @@ for port in serial_ports:
     print(f"{port.name} // {port.device} // D={port.description}")
 
 time.sleep(1)
+cnx_serie_Ok = False
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    cnx_serie_Ok = True
     print("Connexion au port série réussie ")
 except Exception as e:
+    cnx_serie_Ok = False
     print(f"Erreur connexion port série : {e}")
 time.sleep(1)
 
@@ -84,32 +102,33 @@ def send_to_microbit(value):
 def read_serial():
     global latest_data
     global ser
+    global All_latest_data, histo_data
     while True:
         data = ser.readline().decode().strip()
         if data:
             print(f"Donnée reçue : {data}")
             latest_data["valeur"] = data
+            decoup = data.split(":")
+            All_latest_data[decoup[0]] = decoup[1]
+            if decoup[0] in histo_data:
+                # TODO stocker que les X (à définir ) dernière valeur supprimer les autres 
+                # car ne sert a rien surcharge pour rien
+                histo_data[decoup[0]].append(decoup[1])
+            else:
+                histo_data[decoup[0]] = [decoup[1]] 
             # Envoyer les données en temps réel à la page Web via WebSocket
             socketio.emit('update_data', latest_data)
         time.sleep(0.1)
 
-# Fonction pour lire le port série en continu
-t = threading.Thread(target=read_serial, daemon=True)
-def thread_serie():
-    global t
-    global groupe_radio
-    # Démarrer la lecture série dans un thread séparé
+if cnx_serie_Ok :
+    # Fonction pour lire le port série en continu
+    t = threading.Thread(target=read_serial, daemon=True)
+
+# si cnx_auto est a On/True dans le fichier de config.ini alors on lance le thread tout de suite
+if cnx_auto and cnx_serie_Ok :
     t.etat = True
     t.start()
     # dès le démarrage envoi le groupe_radio qui a pu être modifié dans le fichier config
-    send_to_microbit('groupe_radio:' + str(groupe_radio))
-    #TODO a tester send_to_microbit('mode_namevalue:' + int(mode_namevalue))
-
-# si cnx_auto est a On/True dans le fichier de config.ini alors on lance le thread tout de suite
-if cnx_auto :
-    t.etat = True
-    t.start()
-    # dès le démarrage envoi le groupe_radio qui a pu être modifier dans le fichier config
     send_to_microbit('groupe_radio:' + str(groupe_radio))
     #TODO a tester send_to_microbit('mode_namevalue:' + int(mode_namevalue))
 
@@ -137,23 +156,36 @@ def send_command():
 # Route API start le thread de la connexion série de la carte Micro:Bit
 @app.route('/api/thread')
 def start_thread():
-    thread_serie()
+    t = threading.Thread(target=read_serial, daemon=True)
+    # Démarrer la lecture série dans un thread séparé
+    t.etat = True
+    t.start()
+    # dès le démarrage envoi le groupe_radio qui a pu être modifié dans le fichier config
+    send_to_microbit('groupe_radio:' + str(groupe_radio))
+    #TODO a tester send_to_microbit('mode_namevalue:' + int(mode_namevalue))
     return "Thread Cnx Série Micro:Bit lancé"
-
-@app.route('/api/threadstop')
-def stop_thread():
-    global t
-    # Stoppe le thread de lecture série 
-    t.etat = False
-    # TODO a modifier car ne fonctionne pas ...
-    t.stop()
-    return "Thread Cnx Série Micro:Bit STOP"
 
 # Route pour servir l'interface Web
 @app.route('/index')
 @app.route('/')
 def index():
     return render_template("index.html", config=config )
+
+#@app.route('/')
+def pardefaut():
+    #return render_template("index.html", config=config )
+    config['potager'] = {'data_format': 'H', 'page_html': 'potager.html', 'param1': '50'}
+    config['parking'] = {'data_format': 'Parking', 'titre': 'Maquettes Parking Trotinettes',
+         'sous_titre': 'Nombre de place(s) libre', 'valeur_defaut': '3', 'nb_maquettes' : '16',
+         'img_maquette': 'parking.jpg', 'texte_maquette' : 'Parking'}
+    config['barriere'] = {'titre': 'Maquettes barriere', 'data_format': 'Parking', 'img_maquette': 'barriere.jpg',
+         'nb_maquettes' : '10', 'texte_maquette' : 'Barriere'}
+    config['trott2'] = {'data_format': 'Parking', 'titre': 'Maquettes Parking Trotinettes (niveau II)',
+         'sous_titre': 'Place(s) libre', 'valeur_defaut': '1', 'nb_maquettes' : '10',
+         'liste_maquettes' : '0, A, B , C, D, E, F, 01, 02, 03, 04, 05',
+         'img_maquette': 'parking.jpg', 'texte_maquette' : 'Parking', 'page_html': 'trott2.html'}
+
+    return default('parking')
 
 @app.route('/config')
 def config_interface():
@@ -182,7 +214,19 @@ def send_config():
 @app.route('/about')
 @app.route('/version')
 def version():
-    return "Fait par Anthony PENHARD Prof Technologie Ac-Rennes V2.1.0"
+    return "Fait par Anthony PENHARD Prof Technologie Ac-Rennes " + version
+
+# template paramétrable charts qui affiche le garphique correspondant a <data>:value
+@app.route('/charts/<data>')
+def charts(data):
+    # TODO a gérer dans le fichier config.ini ??
+    # libellés des axes
+    text_x = "Temps" # Temps  ou Itérations ?
+    text_y = "Valeur"
+    # nb max de valeur à afficher
+    nb_max_val = 20
+    return render_template("charts.html", config=config , data=data , text_x=text_x, text_y=text_y, nb_max_val=nb_max_val, 
+        histo_data=histo_data , All_latest_data=All_latest_data )
 
 # utiliser un template externe qui est à la racine de l'executable et non intégré <fichier>.html
 template_externe = False
@@ -199,6 +243,12 @@ def template_exists(template_name):
     # Vérifier si le fichier existe
     return os.path.exists(template_path)
 
+def static_exists(static_name):
+    # Construire le chemin complet vers le fichier "static"
+    static_path = os.path.join(root_dir, 'static', static_name)
+    # Vérifier si le fichier existe
+    return os.path.exists(static_path)
+
 # "TODO à tester" pour pouvoir utiliser des images externes :
 # utiliser des images qui sont externes à l'executable et positionnées à la racine de l'executable
 # il est possible de gérer le path directement ici plutôt que dans les templates :
@@ -214,25 +264,25 @@ def serve_external(filename):
 # /fin "TODO à tester"
 
 # Route pour servir l'interface Web Potager Connecté
-@app.route("/<name>")
+@app.route("/<name>",methods = ['GET'])
 def default(name):
     global template_externe
-    print(f"Appel template {name} ") #  {template_externe}
-    if template_externe:
-        print(f" EXTERNE via http://localhost:5000/external/{name}")
-    else:
-        print(f" INTERNE via http://localhost:5000/{name}")
-    if name in config:
-        # si existe section [name] dans config.ini on affiche tous les key : value
-        print(f" Config : {config[name]}")
-        #print(vars(config[name]))
-        for key, value in config.items(name):
-            print(f"{key} : {value}")
 
-    # la section [name] n'existe pas dans le fichier config 
+    # la section [name] n'existe pas dans la config 
     if name not in config:
-        print(f" pas de section [{name}] dans le fichier config.ini ")
+        #print(f" pas de section [{name}] dans le fichier config.ini ")
         config[name] = {}
+
+    # SI il y a des paramètre en mode request.method == 'GET' alors prendre ces valeurs par défaut
+    if request.args : #and request.method == 'GET':
+        # récupérer les données en paramètre à la place de config  
+        #val = request.args.get("val", default="default val", type=str)
+        #age = request.args.get("age", default=50, type=int)
+        #print(f" récupération de val : {val}")
+        for key in request.args.keys():
+            config[name][key] = request.args.get(key)
+            print(f" récupération de val : {key}:{request.args.get(key)}")
+
     Titre = str(config[name].get('titre', 'Maquettes pour ' + name ))
     Sous_titre  = str(config[name].get('sous_titre', ''))
     Data_format = str(config[name].get('data_format', name))
@@ -247,6 +297,8 @@ def default(name):
         Img_Maquette = [e.strip() for e in config[name].get('img_maquette').split(',')]
     else:
         # TODO faire un test si l'image name.png existe alors on la prend ...
+        if static_exists(str(name + '.png')):
+            Img_Maquette = str(config[name].get('img_maquette', name + ".png"))
         #Img_Maquette = str(config[name].get('img_maquette', name + ".png")) 
         Img_Maquette = str(config[name].get('img_maquette', "defaut.png"))
 
@@ -256,9 +308,9 @@ def default(name):
     Param1 = config[name].get('param1')
     Param2 = config[name].get('param2')
     Param3 = config[name].get('param3')
-    # Si on viens depuis http://localhost:5000/external/{name} OU si à la racine exite name.html on prend ce fichier template
-    #if template_externe or os.path.exists(name + '.html'):
-    if os.path.exists(name + '.html'):
+
+    # Si on viens depuis http://localhost:5000/external/{name} OU si à la racine existe name.html on prend ce fichier template
+    if os.path.exists(name + '.html'): #  template_exists(str(name + '.html')): #
         # si bien template externe et le fichier name.html existe bien à la racine de l'executable
         template_externe = False
         # Charge le fichier template externe
@@ -270,7 +322,8 @@ def default(name):
             Img_Maquette = Img_Maquette, Img_Maquette_liste = Img_Maquette_liste,
             Data_format = Data_format, Valeur_defaut = Valeur_defaut, Nb_Maquettes = Nb_Maquettes,
             Texte_Maquette = Texte_Maquette, Liste_Maquettes = Liste_Maquettes,
-            Param1 = Param1, Param2 = Param2, Param3 = Param3)
+            Param1 = Param1, Param2 = Param2, Param3 = Param3,
+            histo_data=histo_data , All_latest_data=All_latest_data)
     else:
         # si on arrive la et que le template_externe = True => soucis le fichier template name.html n'existe pas !
         #if template_externe :
@@ -290,8 +343,10 @@ def default(name):
             Img_Maquette = Img_Maquette, Img_Maquette_liste = Img_Maquette_liste,
             Data_format = Data_format, Valeur_defaut = Valeur_defaut, Nb_Maquettes = Nb_Maquettes,
             Texte_Maquette = Texte_Maquette, Liste_Maquettes = Liste_Maquettes,
-            Param1 = Param1, Param2 = Param2, Param3 = Param3)
+            Param1 = Param1, Param2 = Param2, Param3 = Param3,
+            histo_data=histo_data , All_latest_data=All_latest_data)
 
 # Lancement du serveur Flask
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    #socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    socketio.run(app, host='0.0.0.0', port=5000, use_reloader=False)

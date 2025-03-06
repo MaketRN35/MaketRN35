@@ -6,7 +6,22 @@ avec carte BBC Micro:Bit qui communiques en "sans-fil" et permet d'avoir une sup
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 
-## [Unreleased]
+## [2.2.0] - 2025-03-05
+
+### Added
+ - ajout historisation de la "dernière valeurs reçues" All_latest_data ; mais aussi l'historique complet des valeurs histo_data  
+ - si nouvelle page affichée/connectée au socket, met a jour celle-ci avec les dernières valeurs historisées All_latest_data
+ - nouveau template "/charts/<data>" permet de générer un graphique des 20 dernières valeur reçue de type <data>:val dans histo_data
+ 	- ce nouveau template peux être appelé via "iframe" dans un autre template 
+ - lors d'appel, si un ou des paramètres ajouter en "get" "ex. http://localhost:5000/parking?Img_Maquette=parking.jpg&Texte_Maquette=Parking&Data_format=Parking" prend donc par défaut ces paramètres à la place de la configuration 
+ - ajout de "block" dans le template "defaut" qui permet de créer des templates par "héritage" 
+ 	- block : css_perso / carte_Maquette / perso_Maquette (dans carte_Maquette) / body_perso / javascript_perso / socket_update_data
+
+### Changed
+ - modification de la fonction charts, utilise les données de histo_data et aussi les nouvelles à venir via socket
+ - "/potager" : ajout de seuils pour chaque potager et aussi une iframe qui affiche le graph "historique des 20 dernières valeures" 
+### Deprecated
+ - la fonction "http://localhost:5000/external/<template>" ne sert plus, car géré directement "http://localhost:5000/<template>", va chercher le template disponible à la racine de l'executable si disponible ou natif ou "defaut"
 
 
 ## [2.1.0] - 2025-02-22

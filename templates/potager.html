@@ -21,6 +21,12 @@
             color: #28a745;
             margin-top: 20px;
         }
+        .histo, .histo * {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #28a745;
+            margin: 0px;
+        }
         button, input {
             padding: 10px;
             font-size: 1em;
@@ -47,24 +53,80 @@
             position: absolute;
         }
         .Ilot h3 {
-            width: 200px;
             margin-bottom: 20px;
             right: 10px;
             float: left;
             position: absolute;
+        }
+        .Ilot h4 {
+            font-size: 0.8em;
+            padding: 0px;
+            bottom: -18px;
+            left: 10px;
+            float: left;
+            position: absolute;
+        }
+        .Ilot h4 input {
+            padding: 5px;
+            font-size: 1em;
+            margin: 0px;
+        }
 
+        /* Style pour le conteneur de l'iframe permattant d'afficher les charts*/
+        .iframe-container {
+            display: none; /* Masqué par défaut */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            border: solid;
+        }
+        /* Style pour l'iframe */
+        .iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        /* Style pour le bouton de fermeture */
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: red;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .bouton_charts {
+            text-decoration: underline;
+        }
+        .bouton_charts:hover{
+            background-color:#aaa;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <h1>Micro:bit - {{Nb_Maquettes}} {{Titre}}</h1>
-    <h2>{{Sous_titre}}</h2>
+    <h1>Micro:bit - 8 Maquettes Potager Connecté</h1>
+    <h2>{% if sous_titre %}{{sous_titre|safe}}{% else %}Mesurer l'humidité de la terre{% endif %}</h2>
 
     {% for i in range(1, 9) %}
     <div class="carte Ilot" style="" id="Ilot{{ i }}">
         <img src="{{url_for('static', filename='potager') }}{{i}}.png" alt="Ilot" style="" />
-        <h3 style="text-align:right">Ilot<span id="numIlot{{ i }}" class="data"> {{ i }}</span></h3>
-        <h3 style="bottom: 0px;">Humidité : <span id="valueIlot{{ i }}" class="data">....</span></h3>
+        <h3 style="text-align:right" class="bouton_charts" onclick="openChart('./charts/H{{ i }}')" >
+            Ilot<span id="numIlot{{ i }}" class="data"> {{ i }}</span>
+        </h3>
+        <h3 style="bottom: 0px;">Humidité : <span id="valueIlot{{ i }}" class="data">
+        {% if Data_format + Liste_Maquettes[i] in All_latest_data %}{{All_latest_data[Data_format + Liste_Maquettes[i]]}}{% else %}....{% endif %}</span></h3>
+        <h4>
+        <label for="seuilIlot{{ i }}">Seuil alerte : </label><br>
+        <input type="number" id="seuilIlot{{ i }}" min="10" max="1000" value="{% if Param1 %}{{Param1|safe}}{% else %}50{% endif %}" />
+        </h4>
     </div>
     {% endfor %}
 
@@ -73,16 +135,34 @@
         <p>Data de type : "H1:3000"</p>
     </div>
     <div class="carte">
+        <div id="histo" class="histo" style="">En attente...</div>
+    </div>
+    <div class="carte">
         <label for="groupe_radio">Groupe Radio Micro:Bit : </label>
-        <input type="number" id="groupe_radio" min="1" max="255" value="{{ groupe_radio }}"><br>
+        <input type="number" id="groupe_radio" min="1" max="255" value="{{ groupe_radio }}" /><br>
         <button onclick="sendCommand('groupe_radio')">Changer Groupe Radio </button>
     </div>
     <div class="carte">
         <label for="seuilAlerte">Seuil sous lequel l'ilot est rouge : </label>
-        <input type="number" id="seuilAlerte" value="50"><br>
+        <input type="number" id="seuilAlerte" value="{% if Param1 %}{{Param1|safe}}{% else %}0{% endif %}" /><br>
         <button onclick="MAJSeuil()">Changer Seuil Alerte</button>
     </div>
+    <div class="iframe-container" id="iframe-container">
+        <button class="close-button" id="close-iframe">Fermer</button>
+        <iframe src="" frameborder="0" id="iframe-lien"></iframe>
+    </div>
     <script>
+
+        // JavaScript pour gérer l'affichage et la fermeture de l'iframe
+        function openChart(page) {
+            document.getElementById("iframe-lien").src = page;
+            document.getElementById('iframe-container').style.display = 'block';
+        }
+
+        document.getElementById('close-iframe').addEventListener('click', function() {
+            document.getElementById('iframe-container').style.display = 'none';
+        });
+
         /* fonction permet d'envoyer des datas aux Maquettes du type <texte>:<value de l'élémente id=texte>*/
         function sendCommand(texte) {
             if (texte) { value = texte+ ':' + document.getElementById(texte).value;}
@@ -98,7 +178,7 @@
             }
         }
 
-        var seuilAlerte = 50;
+        var seuilAlerte = {% if Param1 %}{{Param1|safe}}{% else %}0{% endif %};
         function MAJSeuil() {
             seuilAlerte = document.getElementById("seuilAlerte").value;
             // parcourrir les 8 Ilot pour mettre à jour la couleur de fond si alerte
@@ -108,6 +188,8 @@
         function SeuilAlerteColor(element) {
             //element.id
             //element.style.backgroundColor = 'red';
+
+            seuilAlerte = document.getElementById("seuil" +  element.id ).value;
             if (parseInt(document.getElementById("value" + element.id).innerText) < seuilAlerte ){
                 element.classList.add("alerte");
             } else {
@@ -115,19 +197,28 @@
             }
         }
         const socket = io();
-        const Data_format = "{{ Data_format }}"; // format attendu des données <Data_format>X:Y
-
+        const Data_format = "H"; // {{ Data_format }} //format attendu des données <Data_format>X:Y
+        let count = 0;
         // Mise à jour en temps réel des capteurs
         socket.on('update_data', function(data) {
             document.getElementById("data").innerText = data.valeur !== null ? data.valeur : "Pas de données";
+            // dans la carte "histo" affiche les 8 derniers éléments reçus    
+            let p = document.createElement("p");
+            p.innerText = data.valeur !== null ? data.valeur.toString() : "Pas de données";
+            document.getElementById("histo").prepend(p);
+            count += 1;
+            if (count > 8) document.getElementById("histo").removeChild(document.getElementById("histo").lastChild);
+
             if (data.valeur.substring(0, Data_format.length ) == Data_format) { // "H"
                 // si recoit HX:Y   X = 0 à 9 et Y % humidité
                 // si recoit <Data_format>X:Y   X reférence de la maquette (chiffre(s), lettre(s)) le séparateur ":" puis Y valeur a récupérer pour la maquette par seulement sur 1 digit
                 val_X = data.valeur.substring(Data_format.length, data.valeur.indexOf(":") );
                 val_Y = data.valeur.substring(data.valeur.indexOf(":") + 1);
+
                 element = document.getElementById("valueIlot" +  val_X );
                 element.innerText = val_Y;
                 parent = element.parentNode;
+                seuilAlerte = document.getElementById("seuilIlot" +  val_X ).value;
                 if ( parseInt(val_Y) < seuilAlerte ) {
                     parent.classList.add("alerte");
                 } else {
